@@ -1,0 +1,7 @@
+PUBLIC_SITE_URL=https://websolutionsydney.com.au
+ENQUIRY_TO=ryan@websolutionsydney.com.au
+# Set ENQUIRY_FROM to an address on a domain verified in your Resend account.
+ENQUIRY_FROM=
+RESEND_API_KEY=
+TURNSTILE_SITE_KEY=
+TURNSTILE_SECRET_KEY=
