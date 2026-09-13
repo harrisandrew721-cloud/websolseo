@@ -88,10 +88,31 @@ if (form) {
   let requestId;
   let sending = false;
   let waitingForVerification = false;
+  let verificationTimer;
   form.addEventListener('input', () => { requestId = undefined; });
   function announce(message) {
     status.textContent = message;
     status.focus();
+  }
+  function currentToken() {
+    return token || form.querySelector('[name="cf-turnstile-response"]')?.value || '';
+  }
+  function waitForVerifiedToken() {
+    clearInterval(verificationTimer);
+    let checks = 0;
+    verificationTimer = setInterval(() => {
+      checks += 1;
+      token = currentToken();
+      if (token) {
+        clearInterval(verificationTimer);
+        waitingForVerification = false;
+        form.requestSubmit();
+      } else if (checks >= 120) {
+        clearInterval(verificationTimer);
+        waitingForVerification = false;
+        announce('The security check did not return a verification code. Please refresh the page and try once more.');
+      }
+    }, 250);
   }
   async function initialiseDelivery() {
     try {
@@ -111,6 +132,7 @@ if (form) {
           callback: value => {
             token = value;
             if (waitingForVerification) {
+              clearInterval(verificationTimer);
               waitingForVerification = false;
               form.requestSubmit();
             }
@@ -140,10 +162,11 @@ if (form) {
       announce('Online sending is temporarily unavailable. Please refresh the page or email ryan@websolutionsydney.com.au.');
       return;
     }
-    token ||= form.querySelector('[name="cf-turnstile-response"]')?.value || '';
+    token = currentToken();
     if (!token) {
       waitingForVerification = true;
       announce('Please complete the security check. Your enquiry will send automatically when it turns green.');
+      waitForVerifiedToken();
       return;
     }
     requestId ||= crypto.randomUUID();
@@ -172,6 +195,7 @@ if (form) {
       submit.disabled = false;
       submit.textContent = 'Send enquiry';
       token = '';
+      clearInterval(verificationTimer);
       if (widgetId !== undefined) window.turnstile?.reset(widgetId);
     }
   });
