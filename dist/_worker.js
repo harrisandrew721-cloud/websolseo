@@ -12,12 +12,23 @@ function allowedHostname(hostname) {
     hostname.endsWith('.websolseo.pages.dev');
 }
 
-function configured(env, request) {
-  if (!['RESEND_API_KEY', 'ENQUIRY_FROM', 'ENQUIRY_TO', 'TURNSTILE_SECRET_KEY', 'TURNSTILE_SITE_KEY'].every(key => typeof env[key] === 'string' && env[key].trim())) return false;
+function value(...values) {
+  return values.find(item => typeof item === 'string' && item.trim())?.trim() || '';
+}
+
+function configuration(env, request) {
+  const config = {
+    resendKey: value(env.RESEND_API_KEY),
+    from: value(env.ENQUIRY_FROM, env.CONTACT_FROM_EMAIL, env.CONTACT_FORM_FROM_EMAIL, env.RESEND_FROM_EMAIL),
+    to: value(env.ENQUIRY_TO, env.CONTACT_TO_EMAIL, env.CONTACT_EMAIL, env.RESEND_TO_EMAIL),
+    turnstileSecret: value(env.TURNSTILE_SECRET_KEY),
+    turnstileSite: value(env.TURNSTILE_SITE_KEY, env.PUBLIC_TURNSTILE_SITE_KEY, env.VITE_TURNSTILE_SITE_KEY)
+  };
+  if (Object.values(config).some(item => !item)) return null;
   try {
     const site = new URL(request.url);
-    return site.protocol === 'https:' && allowedHostname(site.hostname);
-  } catch { return false; }
+    return site.protocol === 'https:' && allowedHostname(site.hostname) ? config : null;
+  } catch { return null; }
 }
 
 async function boundedBody(request) {
@@ -60,8 +71,9 @@ function validate(input) {
 
 async function handleEnquiry(request, env, fetcher = fetch) {
   if (!['GET', 'POST'].includes(request.method)) return json({ message: 'Method not allowed.' }, 405);
-  if (request.method === 'GET') return json(configured(env, request) ? { enabled: true, siteKey: env.TURNSTILE_SITE_KEY } : { enabled: false });
-  if (!configured(env, request)) return json({ message: 'Direct sending is unavailable. Please email ryan@websolutionsydney.com.au.' }, 503);
+  const config = configuration(env, request);
+  if (request.method === 'GET') return json(config ? { enabled: true, siteKey: config.turnstileSite } : { enabled: false });
+  if (!config) return json({ message: 'Direct sending is unavailable. Please email ryan@websolutionsydney.com.au.' }, 503);
   const origin = new URL(request.url).origin;
   if (request.headers.get('origin') !== origin) return json({ message: 'Please send the enquiry from our website.' }, 403);
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type') || '')) return json({ message: 'Unsupported request format.' }, 415);
@@ -74,7 +86,7 @@ async function handleEnquiry(request, env, fetcher = fetch) {
   try {
     const response = await fetcher('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret: env.TURNSTILE_SECRET_KEY, response: data.token, remoteip: request.headers.get('CF-Connecting-IP') || undefined }),
+      body: JSON.stringify({ secret: config.turnstileSecret, response: data.token, remoteip: request.headers.get('CF-Connecting-IP') || undefined }),
       signal: AbortSignal.timeout(10000)
     });
     if (!response.ok) throw new Error('security_unavailable');
@@ -87,8 +99,8 @@ async function handleEnquiry(request, env, fetcher = fetch) {
   try {
     const response = await fetcher('https://api.resend.com/emails', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json', 'Idempotency-Key': `wss-enquiry/${data.requestId}` },
-      body: JSON.stringify({ from: env.ENQUIRY_FROM, to: [env.ENQUIRY_TO], reply_to: data.email, subject: `${data.service} enquiry — ${data.business}`, text }),
+      headers: { Authorization: `Bearer ${config.resendKey}`, 'Content-Type': 'application/json', 'Idempotency-Key': `wss-enquiry/${data.requestId}` },
+      body: JSON.stringify({ from: config.from, to: [config.to], reply_to: data.email, subject: `${data.service} enquiry — ${data.business}`, text }),
       signal: AbortSignal.timeout(10000)
     });
     const result = await response.json();
