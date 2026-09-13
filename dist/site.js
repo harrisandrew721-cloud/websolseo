@@ -47,6 +47,20 @@ function selectTab(index) {
     if (panel) panel.hidden = !active;
   });
 }
+
+const portfolioFilters = [...document.querySelectorAll('.portfolio-filter')];
+const portfolioCards = [...document.querySelectorAll('.portfolio-card[data-category]')];
+portfolioFilters.forEach(filter => filter.addEventListener('click', () => {
+  const value = filter.dataset.filter;
+  portfolioFilters.forEach(item => {
+    const active = item === filter;
+    item.classList.toggle('is-active', active);
+    item.setAttribute('aria-pressed', String(active));
+  });
+  portfolioCards.forEach(card => {
+    card.hidden = value !== 'all' && card.dataset.category !== value;
+  });
+}));
 tabs.forEach((button, index) => {
   button.addEventListener('click', () => selectTab(index));
   button.addEventListener('keydown', event => {
