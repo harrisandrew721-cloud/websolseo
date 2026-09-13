@@ -92,12 +92,6 @@ if (form) {
     status.textContent = message;
     status.focus();
   }
-  function prepareEmail(data) {
-    const subject = `${data.service} enquiry — ${data.business}`.replace(/[\r\n]/g, ' ');
-    const body = `Name: ${data.name}\nBusiness: ${data.business}\nEmail: ${data.email}\nService: ${data.service}\nWebsite: ${data.website || 'Not provided'}\n\n${data.message}`;
-    location.href = `mailto:ryan@websolutionsydney.com.au?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    announce('Please review and send the draft in your email app. This website has not sent your enquiry. If the app did not open, email ryan@websolutionsydney.com.au.');
-  }
   async function initialiseDelivery() {
     try {
       const response = await fetch('/api/enquiry', { headers: { Accept: 'application/json' }, cache: 'no-store', signal: AbortSignal.timeout(5000) });
@@ -131,7 +125,10 @@ if (form) {
     if (sending || !form.reportValidity()) return;
     const data = Object.fromEntries(new FormData(form));
     if (data.company_url) return;
-    if (!directSend) { prepareEmail(data); return; }
+    if (!directSend) {
+      announce('Online sending is temporarily unavailable. Please refresh the page or email ryan@websolutionsydney.com.au.');
+      return;
+    }
     if (!token) { announce('Please complete the security check before sending.'); return; }
     requestId ||= crypto.randomUUID();
     sending = true;

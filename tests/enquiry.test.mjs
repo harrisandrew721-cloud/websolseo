@@ -29,6 +29,10 @@ test('configuration exposes only the public site key', async () => {
   assert.deepEqual(await response.json(), { enabled: true, siteKey: 'test-public-key' });
   assert.equal(response.headers.get('cache-control'), 'no-store');
 });
+test('configuration works on owned subdomains', async () => {
+  const response = await handleEnquiry(new Request('https://websol.websolutionsydney.com.au/api/enquiry'), env);
+  assert.deepEqual(await response.json(), { enabled: true, siteKey: 'test-public-key' });
+});
 test('preview hostname does not enable production email sending', async () => {
   const response = await handleEnquiry(new Request('https://preview.example.com/api/enquiry'), env);
   assert.deepEqual(await response.json(), { enabled: false });

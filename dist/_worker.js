@@ -5,11 +5,18 @@ function json(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
 }
 
+function allowedHostname(hostname) {
+  return hostname === 'websolutionsydney.com.au' ||
+    hostname.endsWith('.websolutionsydney.com.au') ||
+    hostname === 'websolseo.pages.dev' ||
+    hostname.endsWith('.websolseo.pages.dev');
+}
+
 function configured(env, request) {
-  if (!['RESEND_API_KEY', 'ENQUIRY_FROM', 'ENQUIRY_TO', 'TURNSTILE_SECRET_KEY', 'TURNSTILE_SITE_KEY', 'PUBLIC_SITE_URL'].every(key => typeof env[key] === 'string' && env[key].trim())) return false;
+  if (!['RESEND_API_KEY', 'ENQUIRY_FROM', 'ENQUIRY_TO', 'TURNSTILE_SECRET_KEY', 'TURNSTILE_SITE_KEY'].every(key => typeof env[key] === 'string' && env[key].trim())) return false;
   try {
-    const site = new URL(env.PUBLIC_SITE_URL);
-    return site.protocol === 'https:' && site.origin === new URL(request.url).origin;
+    const site = new URL(request.url);
+    return site.protocol === 'https:' && allowedHostname(site.hostname);
   } catch { return false; }
 }
 
@@ -55,7 +62,7 @@ async function handleEnquiry(request, env, fetcher = fetch) {
   if (!['GET', 'POST'].includes(request.method)) return json({ message: 'Method not allowed.' }, 405);
   if (request.method === 'GET') return json(configured(env, request) ? { enabled: true, siteKey: env.TURNSTILE_SITE_KEY } : { enabled: false });
   if (!configured(env, request)) return json({ message: 'Direct sending is unavailable. Please email ryan@websolutionsydney.com.au.' }, 503);
-  const origin = new URL(env.PUBLIC_SITE_URL).origin;
+  const origin = new URL(request.url).origin;
   if (request.headers.get('origin') !== origin) return json({ message: 'Please send the enquiry from our website.' }, 403);
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type') || '')) return json({ message: 'Unsupported request format.' }, 415);
   let input;

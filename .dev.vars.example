@@ -1,4 +1,4 @@
-PUBLIC_SITE_URL=https://websolutionsydney.com.au
+# The deployed endpoint validates Web Solution Sydney hostnames directly.
 ENQUIRY_TO=ryan@websolutionsydney.com.au
 # Set ENQUIRY_FROM to an address on a domain verified in your Resend account.
 ENQUIRY_FROM=
