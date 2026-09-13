@@ -221,4 +221,19 @@ for p in pages:
 error_file=OUT/'404.html'
 error_html=error_file.read_text().replace('<title>','<meta name="robots" content="noindex"><script src="/site.js?v='+asset_version+'" defer></script><title>',1)
 error_file.write_text(error_html.replace('/styles.css"','/styles.css?v='+asset_version+'"'))
+# Cloudflare Pages advanced-mode Worker. Keeping the API route inside the build
+# output ensures it is deployed even when the dashboard does not detect the
+# repository-level functions directory.
+enquiry_worker=(ROOT/'server'/'enquiry.mjs').read_text().replace('export async function handleEnquiry','async function handleEnquiry',1)
+enquiry_worker+='''\n\nexport default {
+  async fetch(request, env) {
+    const pathname = new URL(request.url).pathname;
+    if (pathname === '/api/enquiry' || pathname === '/api/enquiry/') {
+      return handleEnquiry(request, env);
+    }
+    return env.ASSETS.fetch(request);
+  }
+};
+'''
+(OUT/'_worker.js').write_text(enquiry_worker)
 print('Generated',len(pages),'pages')
