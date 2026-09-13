@@ -56,9 +56,18 @@ portfolio_projects=[
  ('20','SMS Mining','Industrial','https://smsmining.com.au/')
 ]
 
-# Live preview captures keep the portfolio visual and current without copying client assets.
-def project_preview(url):
- return 'https://image.thum.io/get/width/1200/crop/760/noanimate/'+url
+# Exact 800x600 screenshot sources verified on the existing business homepage.
+# Each source belongs to one project; never substitute an unrelated photograph.
+project_images={
+ 0:'https://s.wordpress.com/mshots/v1/https%3A%2F%2Fwww.tfptax.com.au%2F?w=800&h=600',
+ 1:'https://s.wordpress.com/mshots/v1/https%3A%2F%2Fwww.rebuildgroup.com.au%2F?w=800&h=600',
+ 2:'https://s.wordpress.com/mshots/v1/https%3A%2F%2Fwhinburyhillequestrian.com.au%2F?w=800&h=600',
+ 3:'https://s.wordpress.com/mshots/v1/https%3A%2F%2Fwww.localelectrician.com.au%2F?w=800&h=600',
+ 4:'https://s.wordpress.com/mshots/v1/https%3A%2F%2Fwww.dingo.com.au%2F?w=800&h=600',
+ 5:'https://s.wordpress.com/mshots/v1/https%3A%2F%2Fcitrusclean.com.au%2F?w=800&h=600',
+}
+def project_preview(index):
+ return html.escape(project_images[index],quote=True) if index in project_images else None
 catalogue_categories=[
  ('01','AI-powered sites','Chatbots, smart forms and practical website workflows.'),
  ('02','E-commerce & catalogues','Shopping journeys, product catalogues and online stores.'),
@@ -118,7 +127,12 @@ industries=[
 def industry_strip():
  return '<section class="industry-section section" id="industries"><div class="section-heading"><div><span class="eyebrow">INDUSTRY PAGES</span><h2>Built for the way<br><em>your business works.</em></h2></div><p>Start with a relevant page for your industry, then shape the rest of the website around your services, customers and goals.</p></div><div class="industry-grid">'+''.join('<a class="industry-card" href="'+path+'"><span>'+num+' /</span><h3>'+title+'</h3><p>'+desc+'</p><b>Explore page ↗</b></a>' for title,heading,desc,path,num in industries)+'</div></section>'
 def selected_work():
- cards=''.join('<a class="work-card '+('work-card-featured' if i==0 else '')+'" href="'+url+'" target="_blank" rel="noopener noreferrer"><div class="work-card-top"><span>'+num+' /</span><span>OPEN LIVE SITE ↗</span></div><div class="work-card-art art-'+str((i%6)+1)+'"><img src="'+project_preview(url)+'" alt="'+html.escape(name)+' website preview" loading="lazy"><div class="work-card-overlay"><span>'+html.escape(category.upper())+'</span><strong>'+html.escape(name)+'</strong><i aria-hidden="true">↗</i></div></div><p>'+html.escape(category)+' website</p></a>' for i,(num,name,category,url) in enumerate(portfolio_projects[:6]))
+ cards=''.join(
+  '<a class="selected-project" href="'+url+'" target="_blank" rel="noopener noreferrer" aria-label="View '+html.escape(name)+' website (opens in a new tab)">'
+  '<div class="selected-project-image"><img src="'+project_preview(i)+'" alt="'+html.escape(name)+' website screenshot" width="800" height="600" loading="lazy" decoding="async"></div>'
+  '<div class="selected-project-caption"><h3>'+html.escape(name)+'</h3><span class="selected-project-number">'+num+'</span></div>'
+  '<p class="selected-project-category">'+html.escape(('Book keeping' if i==0 else category).upper())+'</p></a>'
+  for i,(num,name,category,url) in enumerate(portfolio_projects[:6]))
  return '<section class="work-section section" id="selected-work"><div class="section-heading"><div><span class="eyebrow">SELECTED WORK</span><h2>Recent projects.<br><em>Different businesses. Clearer websites.</em></h2></div><div class="work-heading-side"><p>A small selection of public project references across trades, services, retail and professional businesses.</p><a class="text-link" href="/portfolio/">All projects '+arrow+'</a></div></div><div class="work-grid">'+cards+'</div><div class="work-footer"><span>PUBLIC PROJECT REFERENCES</span><a class="button outline" href="/designs/">Explore full design catalogue '+arrow+'</a></div></section>'
 def window_mock(compact=False):
  return '<div class="browser-window '+('mini-window' if compact else '')+'"><div class="browser-bar"><span class="traffic-lights">● ● ●</span><span>yourbusiness.com.au</span></div><div class="browser-content"><div class="demo-nav"><strong>YOUR BUSINESS</strong><span>Services &nbsp; About &nbsp; Contact</span></div><div class="demo-hero"><span>GOOD WORK. GREAT FIRST IMPRESSIONS.</span><h3>Your business.<br>Your next chapter.</h3><p>A clear website. An easier way to connect.</p><a href="/website-packages/">Explore website options ↗</a></div><div class="demo-grid"><a href="/website-packages/">01<br><strong>What you do</strong></a><a href="/website-redesign/">02<br><strong>Why choose you</strong></a><a href="/contact/">03<br><strong>Let’s talk</strong></a></div></div></div>'
@@ -149,7 +163,7 @@ def content_html(content):
  return ''.join(out)
 def contact_form():return '''<section class="enquiry-panel"><span class="eyebrow">LET’S GET STARTED</span><h2>A few details.<br>A useful conversation.</h2><form id="enquiry-form" aria-describedby="form-note"><label>Your name<input name="name" autocomplete="name" maxlength="100" required></label><label>Business name<input name="business" autocomplete="organization" maxlength="150" required></label><label>Email address<input name="email" type="email" autocomplete="email" maxlength="254" required></label><label>What do you need?<select name="service"><option>New website</option><option>Website redesign</option><option>Hosting & care</option><option>SEO</option><option>AI marketing</option><option>Not sure yet</option></select></label><label class="wide">Current website (optional)<input name="website" type="url" maxlength="500" placeholder="https://"></label><label class="wide">Tell us about your project<textarea name="message" rows="5" minlength="10" maxlength="4000" required placeholder="Your services, customers and what you want to achieve…"></textarea></label><label class="enquiry-trap" aria-hidden="true">Leave this blank<input name="company_url" tabindex="-1" autocomplete="off"></label><div class="wide" id="enquiry-verification" hidden></div><div class="wide"><button class="button" type="submit">Prepare enquiry email ↗</button><p class="form-note" id="form-note">Opens your email app with these details. Review and send the email to complete your enquiry. This form does not store the draft.</p><p class="form-note">Read our <a href="/privacy/">privacy notice</a>. You can also email <a href="mailto:ryan@websolutionsydney.com.au">ryan@websolutionsydney.com.au</a>.</p><p id="form-status" role="status" aria-live="polite" tabindex="-1"></p></div></form></section>'''
 def portfolio_page():
- cards=''.join('<a class="portfolio-card" href="'+url+'" target="_blank" rel="noopener noreferrer"><div class="portfolio-thumb"><img src="'+project_preview(url)+'" alt="'+html.escape(name)+' website preview" loading="lazy"><span>'+num+' / '+html.escape(category.upper())+'</span></div><h2>'+html.escape(name)+'</h2><p>'+html.escape(category)+' website</p><span class="portfolio-open">Open live site '+arrow+'</span></a>' for num,name,category,url in portfolio_projects)
+ cards=''.join('<a class="portfolio-card" href="'+url+'" target="_blank" rel="noopener noreferrer">'+('<div class="portfolio-thumb"><img src="'+project_preview(i)+'" alt="'+html.escape(name)+' website screenshot" loading="lazy" width="1200" height="900"><span>'+num+' / '+html.escape(category.upper())+'</span></div>' if project_preview(i) else '<div class="portfolio-card-top"><span>'+num+' /</span><span>'+html.escape(category.upper())+'</span></div>')+'<h2>'+html.escape(name)+'</h2><p>'+html.escape(category)+' website</p><span class="portfolio-open">Open live site '+arrow+'</span></a>' for i,(num,name,category,url) in enumerate(portfolio_projects))
  return '<main><section class="page-hero section"><div class="breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true"> / </span><span>Selected work</span></div><span class="eyebrow">SELECTED WORK / PORTFOLIO</span><h1>The work should make<br><em>the direction clear.</em></h1><div class="page-intro"><p>A selection of public project references across trades, services, retail and professional businesses. Open a project to view the live website.</p></div></section><section class="section portfolio-section"><div class="portfolio-intro"><span class="eyebrow">PROJECT INDEX</span><h2>Websites for<br><em>different kinds of work.</em></h2><p>Every business needs a different balance of information, proof and action. These links show the range of directions a website can take.</p></div><div class="portfolio-grid">'+cards+'</div></section><section class="section catalogue-callout"><div><span class="eyebrow">LOOKING FOR MORE DIRECTIONS?</span><h2>Explore the full<br><em>design catalogue.</em></h2><p>Browse the wider catalogue by industry, from AI-powered sites and e-commerce to trades and local services.</p></div><a class="button" href="/designs/">Explore full design catalogue '+arrow+'</a></section>'+cta()+'</main>'
 def designs_page():
  categories=''.join('<a class="catalogue-card" href="/portfolio/"><span>'+num+' /</span><h2>'+html.escape(title)+'</h2><p>'+html.escape(description)+'</p><b>View related work '+arrow+'</b></a>' for num,title,description in catalogue_categories)
@@ -201,4 +215,3 @@ error_file=OUT/'404.html'
 error_html=error_file.read_text().replace('<title>','<meta name="robots" content="noindex"><script src="/site.js?v='+asset_version+'" defer></script><title>',1)
 error_file.write_text(error_html.replace('/styles.css"','/styles.css?v='+asset_version+'"'))
 print('Generated',len(pages),'pages')
-
