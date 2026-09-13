@@ -44,6 +44,17 @@ test('configuration accepts common contact-form variable names', async () => {
   const response = await handleEnquiry(new Request('https://websol.websolutionsydney.com.au/api/enquiry'), aliases);
   assert.deepEqual(await response.json(), { enabled: true, siteKey: 'test-public-key' });
 });
+test('configuration accepts the existing SEO form variable names', async () => {
+  const aliases = {
+    RESEND_API_KEY: env.RESEND_API_KEY,
+    SEO_FROM_EMAIL: env.ENQUIRY_FROM,
+    SEO_ENQUIRY_TO_EMAIL: env.ENQUIRY_TO,
+    TURNSTILE_SECRET_KEY: env.TURNSTILE_SECRET_KEY,
+    VITE_TURNSTILE_SITE_KEY: env.TURNSTILE_SITE_KEY
+  };
+  const response = await handleEnquiry(new Request('https://websol.websolutionsydney.com.au/api/enquiry'), aliases);
+  assert.deepEqual(await response.json(), { enabled: true, siteKey: 'test-public-key' });
+});
 test('preview hostname does not enable production email sending', async () => {
   const response = await handleEnquiry(new Request('https://preview.example.com/api/enquiry'), env);
   assert.deepEqual(await response.json(), { enabled: false });
