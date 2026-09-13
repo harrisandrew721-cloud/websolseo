@@ -87,6 +87,7 @@ if (form) {
   let token = '';
   let requestId;
   let sending = false;
+  let waitingForVerification = false;
   form.addEventListener('input', () => { requestId = undefined; });
   function announce(message) {
     status.textContent = message;
@@ -107,9 +108,19 @@ if (form) {
         widgetId = window.turnstile.render(verification, {
           sitekey: config.siteKey,
           action: 'enquiry',
-          callback: value => { token = value; },
-          'expired-callback': () => { token = ''; },
-          'error-callback': () => { token = ''; }
+          callback: value => {
+            token = value;
+            if (waitingForVerification) {
+              waitingForVerification = false;
+              form.requestSubmit();
+            }
+          },
+          'expired-callback': () => { token = ''; waitingForVerification = false; },
+          'error-callback': () => {
+            token = '';
+            waitingForVerification = false;
+            announce('The security check could not be completed. Please refresh the page and try again.');
+          }
         });
         directSend = true;
         submit.textContent = 'Send enquiry';
@@ -129,7 +140,12 @@ if (form) {
       announce('Online sending is temporarily unavailable. Please refresh the page or email ryan@websolutionsydney.com.au.');
       return;
     }
-    if (!token) { announce('Please complete the security check before sending.'); return; }
+    token ||= form.querySelector('[name="cf-turnstile-response"]')?.value || '';
+    if (!token) {
+      waitingForVerification = true;
+      announce('Please complete the security check. Your enquiry will send automatically when it turns green.');
+      return;
+    }
     requestId ||= crypto.randomUUID();
     sending = true;
     submit.disabled = true;
