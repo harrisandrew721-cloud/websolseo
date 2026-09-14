@@ -95,7 +95,7 @@ if (form) {
     status.focus();
   }
   function currentToken() {
-    return token || form.querySelector('[name="cf-turnstile-response"]')?.value || '';
+    return token || window.turnstile?.getResponse?.(widgetId) || form.querySelector('[name="cf-turnstile-response"]')?.value || '';
   }
   function waitForVerifiedToken() {
     clearInterval(verificationTimer);
