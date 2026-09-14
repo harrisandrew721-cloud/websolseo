@@ -24,11 +24,13 @@ function configuration(env, request) {
     turnstileSecret: value(env.TURNSTILE_SECRET_KEY),
     turnstileSite: value(env.TURNSTILE_SITE_KEY, env.PUBLIC_TURNSTILE_SITE_KEY, env.VITE_TURNSTILE_SITE_KEY)
   };
-  if (Object.values(config).some(item => !item)) return null;
+  const names = { resendKey: 'RESEND_API_KEY', from: 'SEO_FROM_EMAIL', to: 'SEO_ENQUIRY_TO_EMAIL', turnstileSecret: 'TURNSTILE_SECRET_KEY', turnstileSite: 'VITE_TURNSTILE_SITE_KEY' };
+  const missing = Object.keys(config).filter(key => !config[key]).map(key => names[key]);
   try {
     const site = new URL(request.url);
-    return site.protocol === 'https:' && allowedHostname(site.hostname) ? config : null;
-  } catch { return null; }
+    if (site.protocol !== 'https:' || !allowedHostname(site.hostname)) return { code: 'SITE_NOT_ALLOWED', missing: [] };
+  } catch { return { code: 'SITE_NOT_ALLOWED', missing: [] }; }
+  return missing.length ? { code: 'CONFIG_MISSING', missing } : { config };
 }
 
 async function boundedBody(request) {
@@ -71,9 +73,11 @@ function validate(input) {
 
 export async function handleEnquiry(request, env, fetcher = fetch) {
   if (!['GET', 'POST'].includes(request.method)) return json({ message: 'Method not allowed.' }, 405);
-  const config = configuration(env, request);
-  if (request.method === 'GET') return json(config ? { enabled: true, siteKey: config.turnstileSite } : { enabled: false });
-  if (!config) return json({ message: 'Direct sending is unavailable. Please email ryan@websolutionsydney.com.au.' }, 503);
+  const setup = configuration(env, request);
+  const config = setup.config;
+  const unavailable = { enabled: false, code: setup.code, missing: setup.missing, message: 'Online enquiries are temporarily unavailable. Please call 0420 102 599 or email ryan@websolutionsydney.com.au.' };
+  if (request.method === 'GET') return json(config ? { enabled: true, siteKey: config.turnstileSite } : unavailable);
+  if (!config) return json(unavailable, 503);
   const origin = new URL(request.url).origin;
   if (request.headers.get('origin') !== origin) return json({ message: 'Please send the enquiry from our website.' }, 403);
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type') || '')) return json({ message: 'Unsupported request format.' }, 415);
@@ -81,7 +85,7 @@ export async function handleEnquiry(request, env, fetcher = fetch) {
   try { input = await boundedBody(request); }
   catch (error) { return json({ message: 'Please check the form and shorten your message if needed.' }, error.message === 'too_large' ? 413 : 400); }
   const data = validate(input);
-  if (!data) return json({ message: 'Please check the form fields and complete the security check again.' }, 400);
+  if (!data) return json({ code: 'INVALID_FIELDS', message: 'Please check your name, business, email address and project details. Enter a full website address starting with https:// or leave it blank.' }, 400);
   let verification;
   try {
     const response = await fetcher('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
@@ -91,9 +95,13 @@ export async function handleEnquiry(request, env, fetcher = fetch) {
     });
     if (!response.ok) throw new Error('security_unavailable');
     verification = await response.json();
-  } catch { return json({ message: 'The security check is unavailable. Please try again or email us.' }, 502); }
+  } catch { return json({ code: 'SECURITY_UNAVAILABLE', message: 'The security check is unavailable. Please try again or email us.' }, 502); }
   if (verification.success !== true || verification.hostname !== new URL(origin).hostname || verification.action !== 'enquiry') {
-    return json({ message: 'Please complete the security check again.' }, 400);
+    const errors = verification['error-codes'] || [];
+    const misconfigured = errors.includes('invalid-input-secret') || errors.includes('missing-input-secret');
+    const code = misconfigured ? 'SECURITY_CONFIG' : verification.success ? 'SECURITY_CONTEXT' : 'SECURITY_REJECTED';
+    console.warn('Enquiry rejected', { code });
+    return json({ code, message: misconfigured ? 'Our security check is not configured correctly. Please call or email us.' : 'The security check was not accepted. Please complete the new check and send your enquiry again.' }, misconfigured ? 503 : 400);
   }
   const text = `Name: ${data.name}\nBusiness: ${data.business}\nReply email: ${data.email}\nService: ${data.service}\nWebsite: ${data.website || 'Not provided'}\n\n${data.message}`;
   try {
@@ -104,9 +112,26 @@ export async function handleEnquiry(request, env, fetcher = fetch) {
       signal: AbortSignal.timeout(10000)
     });
     const result = await response.json();
-    if (!response.ok || typeof result.id !== 'string' || !result.id) throw new Error('not_accepted');
+    if (!response.ok) {
+      const providerMessage = typeof result.message === 'string' ? result.message.toLowerCase() : '';
+      let code = 'EMAIL_REJECTED';
+      let message = 'Our email service did not accept this enquiry. Please call or email us. Your details are still in the form.';
+      if (response.status === 401 || result.name === 'invalid_api_key') {
+        code = 'EMAIL_AUTH';
+        message = 'Our email service could not sign in to send your enquiry. Please call or email us.';
+      } else if (providerMessage.includes('domain') && /verif|own/.test(providerMessage)) {
+        code = 'EMAIL_SENDER';
+        message = 'Our sending email address needs to be verified before this form can send. Please call or email us.';
+      } else if (response.status === 429) {
+        code = 'EMAIL_LIMIT';
+        message = 'Our email service is busy. Please wait a minute before sending again.';
+      }
+      console.warn('Enquiry rejected', { code, providerStatus: response.status });
+      return json({ code, message }, 502);
+    }
+    if (typeof result.id !== 'string' || !result.id) throw new Error('not_accepted');
     return json({ status: 'accepted' });
   } catch {
-    return json({ message: 'We could not confirm email delivery. Please email or call us before trying again.' }, 502);
+    return json({ code: 'EMAIL_UNCONFIRMED', message: 'We could not confirm email delivery. Please email or call us before trying again. Your details are still in the form.' }, 502);
   }
 }

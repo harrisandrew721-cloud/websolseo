@@ -20,7 +20,10 @@ function network(turnstile = verified, email = { id: 'test-accepted-id' }, email
 test('unconfigured form disables direct delivery and makes no external calls', async () => {
   const n = network();
   const get = await handleEnquiry(new Request(origin + '/api/enquiry'), {}, n.fetcher);
-  assert.deepEqual(await get.json(), { enabled: false });
+  const config = await get.json();
+  assert.equal(config.enabled, false);
+  assert.equal(config.code, 'CONFIG_MISSING');
+  assert.deepEqual(config.missing, ['RESEND_API_KEY', 'SEO_FROM_EMAIL', 'SEO_ENQUIRY_TO_EMAIL', 'TURNSTILE_SECRET_KEY', 'VITE_TURNSTILE_SITE_KEY']);
   assert.equal((await handleEnquiry(request(), {}, n.fetcher)).status, 503);
   assert.equal(n.calls.length, 0);
 });
@@ -57,7 +60,7 @@ test('configuration accepts the existing SEO form variable names', async () => {
 });
 test('preview hostname does not enable production email sending', async () => {
   const response = await handleEnquiry(new Request('https://preview.example.com/api/enquiry'), env);
-  assert.deepEqual(await response.json(), { enabled: false });
+  assert.equal((await response.json()).code, 'SITE_NOT_ALLOWED');
 });
 test('cross-origin request is rejected before any provider request', async () => {
   const n = network();
@@ -115,4 +118,35 @@ test('valid request uses fixed recipient, visitor reply-to, plain text and idemp
   assert.equal(email.html, undefined);
   assert.ok(email.text.includes(fields.message));
   assert.equal(n.calls[1].headers['Idempotency-Key'], 'wss-enquiry/' + fields.requestId);
+});
+
+test('missing-setting diagnostics contain names only, never configured values', async () => {
+  const response = await handleEnquiry(new Request(origin + '/api/enquiry'), { ...env, TURNSTILE_SECRET_KEY: '' });
+  const result = await response.json();
+  assert.equal(result.enabled, false);
+  assert.deepEqual(result.missing, ['TURNSTILE_SECRET_KEY']);
+  for (const secret of Object.values(env)) assert.ok(!JSON.stringify(result).includes(secret));
+});
+
+test('security configuration errors are distinct from visitor challenge errors', async () => {
+  const n = network({ success: false, 'error-codes': ['invalid-input-secret'] });
+  const response = await handleEnquiry(request(), env, n.fetcher);
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).code, 'SECURITY_CONFIG');
+  assert.equal(n.calls.length, 1);
+});
+
+test('provider rejection codes are specific without exposing provider messages or keys', async () => {
+  for (const [body, status, code] of [
+    [{ name: 'invalid_api_key', message: 'Secret test-secret-not-live is invalid' }, 401, 'EMAIL_AUTH'],
+    [{ message: 'The private.example.com domain is not verified' }, 403, 'EMAIL_SENDER'],
+    [{ message: 'Too many requests' }, 429, 'EMAIL_LIMIT'],
+    [{ message: 'Invalid from address' }, 422, 'EMAIL_REJECTED']
+  ]) {
+    const n = network(verified, body, status);
+    const result = await (await handleEnquiry(request(), env, n.fetcher)).json();
+    assert.equal(result.code, code);
+    assert.ok(!JSON.stringify(result).includes('test-secret-not-live'));
+    assert.ok(!JSON.stringify(result).includes('private.example.com'));
+  }
 });
